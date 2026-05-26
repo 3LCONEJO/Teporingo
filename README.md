@@ -132,7 +132,7 @@ Defines neural network training parameters.
 | `epochs` | Maximum training epochs |
 | `batch_size` | Training batch size |
 | `learning_rate` | Optimizer learning rate |
-| `optimizer` | Optimizer type (`adam`, `adamw`, etc.) |
+| `optimizer` | Optimizer type (`sgd`, `adamw`, etc.) |
 | `embedding_dim` | Latent embedding size |
 | `network` | Model architecture |
 | `patience` | Early stopping patience |
