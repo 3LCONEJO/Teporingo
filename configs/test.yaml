@@ -1,0 +1,41 @@
+pipeline:
+  min_maf: 0.01
+  max_maf: 0.10
+  use_gt: True
+  output_prefix: "fastdemux-testing"
+  vcf: "/home/suaria/Documentos/IA/Proyecto/data/fastdemux/combined.posG199.only8.reheader.vcf.gz"
+  assignments: "/home/suaria/Documentos/IA/Proyecto/data/fastdemux/assignment.tsv"
+  bams:
+    batch_a: "/home/suaria/Documentos/IA/Proyecto/data/fastdemux/possorted_genome_bam_1pct.bam"
+
+training:
+  output_dir: "models/fd_smoke_A_siamese"
+  batch_label: "batch_a"
+  overwrite: false
+  epochs: 5
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer: "adamw"
+  embedding_dim: 512
+  network: "siamese"
+  patience: 10
+  num_workers: 4
+  seed: 30131211
+  negative_ratio: 3.0
+  pair_mode: "sampled"
+  skip_dataloader_smoke_test: true
+  hard_negatives_k: 10
+
+evaluate:
+  model: "models/fd_smoke_A_siamese/best_model.pt"
+  vcf_matrix: "fastdemux-testing_vcf_batch_a_matrix.pt"
+  bam_matrix: "fastdemux-testing_bam_batch_a_matrix.npz"
+  metadata: "fastdemux-testing_metadata_batch_a.pt"
+  output_dir: "models/fd_smoke_A_siamese"
+  batch_size: 64
+  num_workers: 4
+  analysis:
+    score_csv: "models/fd_smoke_A_siamese/score_pairs.csv"
+    output_dir: "models/fd_smoke_A_siamese"
+    prefix: "analyze_output"
+    unsupervised_method: "kmeans"

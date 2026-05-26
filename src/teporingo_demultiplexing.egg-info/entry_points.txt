@@ -1,0 +1,2 @@
+[console_scripts]
+teporingo-demultiplexing = teporingo_demultiplexing.cli:main

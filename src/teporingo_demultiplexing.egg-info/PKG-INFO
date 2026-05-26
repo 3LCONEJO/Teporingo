@@ -1,3 +1,12 @@
+Metadata-Version: 2.4
+Name: teporingo-demultiplexing
+Version: 0.1.0
+Summary: Genotype-to-cell demultiplexing pipeline
+Author: Your Name
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
 # Teporingo-Demultiplexing
 
 Teporingo-Demultiplexing is a clean starter structure for a genotype-to-cell demultiplexing tool.
@@ -12,12 +21,3 @@ Teporingo-Demultiplexing is a clean starter structure for a genotype-to-cell dem
 ## Status
 
 This is the initial scaffold only. Add the pipeline, models, and data-loading logic in the package modules.
-
-## Config idea
-
-The default YAML is designed to hold the main inputs in one place:
-
-- `vcf`: preferably a merged VCF shared by all batches
-- `assignments`: barcode-to-donor assignments file
-- `bams`: one or many BAM files, keyed by batch label
-- `tips`: short reminders for users about merged VCFs and possible barcode collisions when merging BAMs

@@ -2,3 +2,43 @@ pipeline:
   min_maf: 0.01
   max_maf: 0.10
   use_gt: true
+  vcf: "/path/to/merged_panel.vcf.gz"
+  assignments: "/path/to/assignments.tsv"
+  bams:
+    batch_a: "/path/to/batch_a.bam"
+    batch_b: "/path/to/batch_b.bam"
+  tips:
+    vcf: "Prefer a merged VCF so every BAM is compared against the same genotype panel."
+    bams: "You can list any number of BAMs, but if you merge them, barcode collisions can happen across batches. Keep batch labels or deduplicate later."
+
+training:
+  output_dir: "models/siamese"
+  batch_label: "batch_a"
+  overwrite: false
+  epochs: 50
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer: "adamw"
+  embedding_dim: 512
+  network: "siamese"
+  patience: 10
+  num_workers: 4
+  seed: 42
+  negative_ratio: 0.1
+  pair_mode: "sampled"
+  skip_dataloader_smoke_test: true
+  hard_negatives_k: 10
+
+evaluate:
+  model: "models/siamese/best_model.pt"
+  vcf_matrix: "Proyecto/data/fastdemux_out/batches/A/A_vcf_matrix.pt"
+  bam_matrix: "Proyecto/data/fastdemux_out/batches/A/A_bam_matrix.npz"
+  metadata: "Proyecto/data/fastdemux_out/batches/A/A_metadata.pt"
+  output_dir: "models/siamese"
+  batch_size: 64
+  num_workers: 4
+  analysis:
+    score_csv: "models/siamese/score_pairs.csv"
+    output_dir: "models/siamese"
+    prefix: "analyze_output"
+    unsupervised_method: "kmeans"

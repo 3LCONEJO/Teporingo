@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/teporingo_demultiplexing/__init__.py
+src/teporingo_demultiplexing/cli.py
+src/teporingo_demultiplexing/io.py
+src/teporingo_demultiplexing/pipeline.py
+src/teporingo_demultiplexing.egg-info/PKG-INFO
+src/teporingo_demultiplexing.egg-info/SOURCES.txt
+src/teporingo_demultiplexing.egg-info/dependency_links.txt
+src/teporingo_demultiplexing.egg-info/entry_points.txt
+src/teporingo_demultiplexing.egg-info/top_level.txt
+src/teporingo_demultiplexing/models/__init__.py
+tests/test_smoke.py
