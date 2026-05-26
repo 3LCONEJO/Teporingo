@@ -1,0 +1,4 @@
+pipeline:
+  min_maf: 0.01
+  max_maf: 0.10
+  use_gt: true
