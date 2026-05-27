@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teporingo-Demultiplexing · Siamese Neural Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070b10;
+      --bg2: #0a1118;
+      --panel: #0e1620;
+      --panel2: #111c28;
+      --panel3: #0c141d;
+      --border: #253241;
+      --border2: #314255;
+      --text: #d6e4f0;
+      --muted: #7f93a8;
+      --bright: #f5fbff;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Space Grotesk', system-ui, sans-serif;
+      --blue: #48c7ff;
+      --teal: #3fe1c6;
+      --green: #78f26f;
+      --amber: #ffcb6b;
+      --orange: #ff9966;
+      --red: #ff6379;
+      --steel: #4e6a84;
+      --steel2: #2d3f50;
+      --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      --scan: repeating-linear-gradient(
+        180deg,
+        rgba(255,255,255,0.00),
+        rgba(255,255,255,0.00) 2px,
+        rgba(255,255,255,0.025) 2px,
+        rgba(255,255,255,0.025) 4px
+      );
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, rgba(72, 199, 255, 0.14), transparent 30%),
+        radial-gradient(circle at 80% 0%, rgba(63, 225, 198, 0.10), transparent 32%),
+        linear-gradient(180deg, #05070a 0%, var(--bg) 22%, var(--bg2) 100%);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: var(--scan);
+      opacity: 0.55;
+      z-index: 9999;
+      mix-blend-mode: screen;
+    }
+
+    .page {
+      max-width: 1900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .statusbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 8px 12px;
+      border: 1px solid var(--border2);
+      background: linear-gradient(90deg, rgba(13, 22, 31, 0.96), rgba(18, 30, 42, 0.96));
+      color: var(--bright);
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+    }
+    .statusbar-item { opacity: 0.78; }
+    .statusbar-item.hl { opacity: 1; color: var(--teal); }
+    .statusbar-sep { color: rgba(214, 228, 240, 0.18); }
+
+    .win {
+      border: 1px solid var(--border2);
+      background: linear-gradient(180deg, rgba(15, 24, 34, 0.96), rgba(9, 14, 20, 0.96));
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .win::before {
+      content: attr(data-label);
+      display: block;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border2);
+      background: rgba(255,255,255,0.02);
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .win-body { padding: 14px 16px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 360px;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .hero-main .win-body { padding: 22px 22px 20px; }
+    .prompt-line {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .prompt-user { color: var(--orange); font-weight: 700; }
+    .prompt-host { color: var(--blue); }
+    .prompt-path { color: var(--amber); }
+    .prompt-sym { color: var(--red); }
+
+    h1 {
+      margin: 0 0 10px;
+      line-height: 0.95;
+      color: var(--bright);
+      font-size: clamp(2rem, 5vw, 4.2rem);
+      letter-spacing: -0.05em;
+      text-transform: uppercase;
+    }
+    h1 .accent { color: var(--teal); }
+    .h1-sub {
+      margin-bottom: 14px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .subtitle {
+      margin: 0 0 16px;
+      color: var(--text);
+      line-height: 1.7;
+      max-width: 84ch;
+      border-left: 2px solid rgba(72, 199, 255, 0.35);
+      padding-left: 14px;
+      font-size: 0.92rem;
+    }
+    .meta-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .meta {
+      padding: 5px 10px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,0.02);
+      color: var(--bright);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .meta::before { content: '# '; color: var(--muted); }
+
+    .legend-grid {
+      display: grid;
+      gap: 8px;
+    }
+    .legend-item {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .legend-sq {
+      width: 16px;
+      height: 16px;
+      margin-top: 2px;
+      border: 2px solid currentColor;
+      position: relative;
+    }
+    .legend-sq::after { content: ''; position: absolute; inset: 2px; opacity: 0.35; background: currentColor; }
+    .legend-sq.blue { color: var(--blue); }
+    .legend-sq.green { color: var(--green); }
+    .legend-sq.amber { color: var(--amber); }
+    .legend-sq.red { color: var(--red); }
+    .legend-item strong { display: block; color: var(--bright); margin-bottom: 2px; }
+    .legend-item span { color: var(--muted); }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) 420px;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .ctrl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border: 1px solid var(--border2);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: all 0.14s ease;
+    }
+    .ctrl-btn:hover { border-color: var(--teal); color: var(--teal); background: rgba(63, 225, 198, 0.06); }
+    .ctrl-btn.active { border-color: var(--green); color: var(--green); background: rgba(120, 242, 111, 0.08); }
+    .ctrl-sep { width: 1px; height: 24px; background: var(--border2); }
+    .step-counter {
+      margin-left: auto;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      font-family: var(--mono);
+    }
+    .step-counter strong { color: var(--teal); }
+
+    .pan-bar {
+      display: grid;
+      grid-template-columns: 120px 1fr 64px;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+    .pan-bar label {
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .pan-bar label::before { content: '-- '; color: var(--steel); }
+    .pan-bar input[type="range"] { width: 100%; accent-color: var(--teal); }
+    .pan-value { color: var(--teal); text-align: right; }
+
+    .phase-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .phase-seg {
+      position: relative;
+      overflow: hidden;
+      padding: 8px 10px 10px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .phase-seg::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 3px;
+      width: var(--fill, 0%);
+      transition: width 0.35s ease;
+    }
+    .phase-seg.p1 { color: var(--blue); }
+    .phase-seg.p1::after { background: var(--blue); }
+    .phase-seg.p2 { color: var(--teal); }
+    .phase-seg.p2::after { background: var(--teal); }
+    .phase-seg.p3 { color: var(--amber); }
+    .phase-seg.p3::after { background: var(--amber); }
+    .phase-seg.p4 { color: var(--orange); }
+    .phase-seg.p4::after { background: var(--orange); }
+    .phase-seg.p5 { color: var(--red); }
+    .phase-seg.p5::after { background: var(--red); }
+    .phase-seg.active { border-color: currentColor; background: rgba(255,255,255,0.04); }
+    .phase-label { display: block; color: var(--bright); font-weight: 700; margin-bottom: 3px; }
+    .phase-count { color: var(--muted); }
+
+    .factory-panel .win-body { padding: 12px; }
+    .factory-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .factory-title {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .factory-title::before { content: '$ '; color: var(--amber); }
+    .factory-note {
+      font-size: 0.76rem;
+      color: var(--steel);
+      line-height: 1.6;
+    }
+    .factory-note::before { content: '// '; color: var(--muted); }
+
+    .factory-stage {
+      width: 100%;
+      min-height: 760px;
+      border: 1px solid var(--border);
+      background:
+        linear-gradient(90deg, rgba(72, 199, 255, 0.04) 0 1px, transparent 1px 40px),
+        linear-gradient(180deg, rgba(72, 199, 255, 0.04) 0 1px, transparent 1px 40px),
+        radial-gradient(circle at 0 0, rgba(63, 225, 198, 0.05), transparent 25%),
+        rgba(8, 13, 19, 0.9);
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+    }
+    .factory-stage::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent, rgba(255,255,255,0.04), transparent);
+      height: 3px;
+      animation: sweep 6s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes sweep { from { transform: translateY(-100%); } to { transform: translateY(780px); } }
+
+    .factory-canvas {
+      position: absolute;
+      inset: 0;
+      width: 1800px;
+      height: 760px;
+      transform: translateX(var(--pan-x, 0px));
+      transform-origin: top left;
+      will-change: transform;
+    }
+    .factory-stage svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .edge-path {
+      fill: none;
+      stroke-linecap: square;
+      stroke-linejoin: miter;
+      shape-rendering: crispEdges;
+      transition: stroke-width 0.15s ease, stroke-opacity 0.15s ease;
+    }
+    .edge-path.highlight { stroke-width: 5 !important; stroke-opacity: 1 !important; filter: drop-shadow(0 0 4px currentColor); }
+
+    .station-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 166px;
+      border: 1px solid var(--border2);
+      background: linear-gradient(180deg, rgba(17, 28, 40, 0.98), rgba(10, 17, 24, 0.98));
+      color: var(--text);
+      padding: 8px 10px 10px;
+      text-align: left;
+      cursor: pointer;
+      font-family: var(--mono);
+      z-index: 3;
+      transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .station-node::before {
+      content: attr(data-id);
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      background: var(--border2);
+      color: var(--muted);
+      font-size: 0.62rem;
+      font-weight: 700;
+    }
+    .station-node:hover {
+      border-color: var(--teal);
+      transform: translate(-50%, -50%) scale(1.03);
+      box-shadow: 0 0 0 1px rgba(63, 225, 198, 0.24), inset 0 0 24px rgba(63, 225, 198, 0.04);
+      z-index: 6;
+    }
+    .station-node.active {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 1px rgba(255, 153, 102, 0.28), 0 0 18px rgba(255, 153, 102, 0.12);
+      z-index: 6;
+    }
+    .station-node.route-hl { border-color: var(--teal); box-shadow: 0 0 0 1px rgba(63, 225, 198, 0.25); }
+    .station-node.ping::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border: 2px solid rgba(63, 225, 198, 0.95);
+      pointer-events: none;
+      animation: ping 0.55s ease-out forwards;
+    }
+    @keyframes ping { from { transform: scale(0.9); opacity: 0.95; } to { transform: scale(1.8); opacity: 0; } }
+
+    .node-top {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+      margin-top: 4px;
+    }
+    .node-dot {
+      width: 10px;
+      height: 10px;
+      border: 2px solid currentColor;
+      position: relative;
+      flex: none;
+    }
+    .node-dot::after { content: ''; position: absolute; inset: 1px; background: currentColor; opacity: 0.35; }
+    .node-dot.blue { color: var(--blue); }
+    .node-dot.teal { color: var(--teal); }
+    .node-dot.amber { color: var(--amber); }
+    .node-dot.orange { color: var(--orange); }
+    .node-dot.red { color: var(--red); }
+
+    .node-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--bright);
+      line-height: 1.25;
+    }
+    .node-mini {
+      font-size: 0.64rem;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+    .node-mini::before { content: '→ '; color: var(--steel); }
+
+    .station-panel {
+      transition: opacity 0.2s, width 0.3s, transform 0.3s;
+      overflow: hidden;
+    }
+    .station-panel .win-body {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      animation: panelIn 0.25s ease;
+    }
+    @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .panel-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .nav-arrow {
+      padding: 4px 9px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      line-height: 1;
+    }
+    .nav-arrow:hover:not(:disabled) { border-color: var(--orange); color: var(--orange); }
+    .nav-arrow:disabled { opacity: 0.35; cursor: default; }
+    .nav-label {
+      flex: 1;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .nav-label strong { color: var(--teal); }
+
+    .station-kicker {
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+    .station-kicker::before { content: '$ cat '; color: var(--orange); }
+    .station-title {
+      margin: 0;
+      color: var(--bright);
+      font-size: 1.2rem;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+    }
+    .station-text {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.84rem;
+      line-height: 1.75;
+      border-left: 2px solid rgba(72, 199, 255, 0.25);
+      padding-left: 12px;
+    }
+
+    .io-box,
+    .why-box,
+    .example-box,
+    .note-box {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      padding: 8px 12px;
+    }
+    .io-box strong,
+    .why-box strong,
+    .example-box strong,
+    .note-box strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.64rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .io-box strong::before { content: '< '; color: var(--blue); }
+    .why-box strong::before { content: '# '; color: var(--teal); }
+    .example-box strong::before { content: '/* '; color: var(--steel); }
+    .note-box strong::before { content: '> '; color: var(--amber); }
+    .io-code {
+      font-family: var(--mono);
+      font-size: 0.77rem;
+      color: #afd9ff;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .io-box.cmd .io-code { color: var(--orange); }
+    .io-box.output .io-code { color: var(--amber); }
+    .why-box p,
+    .example-box p,
+    .note-box p {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.8rem;
+      line-height: 1.62;
+    }
+    .example-box p { color: var(--muted); font-style: italic; }
+
+    .steps {
+      display: grid;
+      gap: 6px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .step-mini {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.12s ease, background 0.12s ease;
+    }
+    .step-mini:hover { border-color: var(--steel); background: rgba(72, 199, 255, 0.03); }
+    .step-mini.active { border-color: var(--teal); background: rgba(63, 225, 198, 0.05); }
+    .step-mini.done .mini-num { background: rgba(120, 242, 111, 0.12); color: var(--green); }
+    .step-mini.active .mini-num { background: var(--teal); color: #001311; }
+    .mini-num {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      background: var(--border);
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+    .step-mini span:last-child { display: block; line-height: 1.25; }
+    .step-mini span:last-child strong { display: block; color: var(--bright); font-size: 0.74rem; margin-bottom: 1px; }
+    .step-mini span:last-child small { color: var(--muted); font-size: 0.68rem; }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card-body { padding: 14px 16px; }
+    .card-body h3 {
+      margin: 0 0 10px;
+      color: var(--teal);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .card-body h3::before { content: '$ '; color: var(--muted); }
+    .card-body p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.72;
+    }
+    .callout {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.6;
+    }
+    .callout strong { color: var(--bright); }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1.2fr 0.85fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .matrix-card .win-body { padding: 12px; }
+    .matrix-card h4 {
+      margin: 0 0 8px;
+      color: var(--bright);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .matrix-card h4::before { content: '# '; color: var(--teal); }
+    .matrix-card p.note {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.55;
+    }
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.67rem;
+      color: var(--text);
+    }
+    .matrix-table th,
+    .matrix-table td {
+      border: 1px solid var(--border);
+      padding: 6px 7px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .matrix-table thead th {
+      background: rgba(255,255,255,0.04);
+      color: var(--bright);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.62rem;
+    }
+    .matrix-table .row-h {
+      text-align: left;
+      background: rgba(255,255,255,0.03);
+      color: var(--bright);
+      font-weight: 700;
+    }
+    .val0 { background: rgba(72, 199, 255, 0.10); color: #c9f0ff; }
+    .val1 { background: rgba(255, 203, 107, 0.13); color: #ffe6b5; }
+    .val2 { background: rgba(120, 242, 111, 0.12); color: #dcffda; }
+    .bam-ref { background: rgba(78, 106, 132, 0.22); color: #d8e3ed; }
+    .bam-alt { background: rgba(255, 153, 102, 0.16); color: #ffd9c8; }
+    .chip {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--border2);
+      background: rgba(255,255,255,0.02);
+      color: var(--muted);
+      font-size: 0.62rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-right: 4px;
+    }
+
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.95fr 0.8fr;
+      gap: 12px;
+    }
+    .blueprint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      font-size: 0.78rem;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+    .blueprint h4 {
+      margin: 0 0 6px;
+      color: var(--bright);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .blueprint h4::before { content: '/* '; color: var(--steel); }
+    .blueprint strong { color: var(--teal); }
+    .blueprint ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text);
+    }
+    .blueprint li { margin: 4px 0; }
+
+    .code-block {
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      line-height: 1.6;
+      color: #b7d7ef;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      padding: 10px 12px;
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      padding-left: 10px;
+      border-left: 2px solid var(--border2);
+      color: var(--steel);
+      font-size: 0.74rem;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1500px) {
+      .hero, .main-grid, .section-grid, .matrix-grid, .bottom-grid { grid-template-columns: 1fr; }
+      .factory-stage { min-height: 700px; }
+    }
+    @media (max-width: 920px) {
+      .phase-bar { grid-template-columns: repeat(2, 1fr); }
+      .station-node { width: 140px; }
+      .factory-stage { min-height: 920px; }
+      .pan-bar { grid-template-columns: 100px 1fr 54px; }
+    }
+    @media print {
+      .toolbar, .pan-bar { display: none; }
+      body::before { display: none; }
+      .factory-stage { min-height: 760px; overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="statusbar">
+      <span class="statusbar-item hl">NORMAL</span>
+      <span class="statusbar-sep">│</span>
+      <span class="statusbar-item">teporingo-demultiplexing</span>
+      <span class="statusbar-sep">│</span>
+      <span class="statusbar-item" id="statusStep">estación 1/9</span>
+      <span class="statusbar-sep">│</span>
+      <span class="statusbar-item">VCF · BAM · pairs · cosine</span>
+      <span class="statusbar-sep">│</span>
+      <span class="statusbar-item">SmoothL1 · AdamW · batch</span>
+      <span class="statusbar-sep" style="margin-left:auto">│</span>
+      <span class="statusbar-item hl" id="statusClock">--:--:--</span>
+    </div>
+
+    <div class="phase-bar" id="phaseBar">
+      <div class="phase-seg p1" data-phase="entrada" style="--fill:0%"><span class="phase-label">Recepción</span><span class="phase-count" id="phCount1">0/2</span></div>
+      <div class="phase-seg p2" data-phase="matrices" style="--fill:0%"><span class="phase-label">Matrices</span><span class="phase-count" id="phCount2">0/2</span></div>
+      <div class="phase-seg p3" data-phase="pares" style="--fill:0%"><span class="phase-label">Pares</span><span class="phase-count" id="phCount3">0/2</span></div>
+      <div class="phase-seg p4" data-phase="red" style="--fill:0%"><span class="phase-label">Red</span><span class="phase-count" id="phCount4">0/2</span></div>
+      <div class="phase-seg p5" data-phase="salida" style="--fill:0%"><span class="phase-label">Salida</span><span class="phase-count" id="phCount5">0/1</span></div>
+    </div>
+
+    <section class="hero">
+      <div class="win hero-main" data-label="teporingo.factory · línea de montaje siamesa">
+        <div class="win-body">
+          <div class="prompt-line">
+            <span class="prompt-user">codos@lab</span><span class="prompt-sym">:</span><span class="prompt-path">~/Teporingo/</span><span class="prompt-sym">$</span>
+            <span style="color:var(--bright)">cat siamese_pipeline.md</span>
+          </div>
+          <h1>Teporingo-<span class="accent">Demultiplexing</span><br>Siamese NN</h1>
+          <div class="h1-sub">de archivos crudos a asignación de donor · vista tipo fábrica</div>
+          <p class="subtitle">
+            Esta infografía resume cómo se arma la tubería para emparejar una célula con su donor correcto.
+            Verás qué entra, cómo se transforma cada matriz, cómo trabajan las dos ramas de la red siamesa
+            y por qué usamos similitud coseno, <em>SmoothL1Loss</em>, <em>AdamW</em> y batches para aprender.
+          </p>
+          <div class="meta-row">
+            <div class="meta">VCF → X_VCF</div>
+            <div class="meta">BAM → X_BAM</div>
+            <div class="meta">GenotypeMatchingDataset</div>
+            <div class="meta">SiameseNetwork</div>
+            <div class="meta">analyze_output</div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="win" data-label="legend.conf · piezas y colores">
+        <div class="win-body">
+          <div style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;">
+            <span style="color:var(--orange)">$</span> grep -E 'input|pair|encode|score' legend.conf
+          </div>
+          <div class="legend-grid">
+            <div class="legend-item">
+              <div class="legend-sq blue"></div>
+              <div><strong>Materia prima</strong><span>VCF, BAM y metadata con barcodes y asignaciones.</span></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-sq green"></div>
+              <div><strong>Emparejamiento</strong><span>Pares positivos y negativos para enseñar la comparación.</span></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-sq amber"></div>
+              <div><strong>Red siamesa</strong><span>Dos ramas, una para célula y otra para genotipo.</span></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-sq red"></div>
+              <div><strong>Inspección final</strong><span>Accuracy, AUC, AP, mejor threshold y análisis por célula.</span></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="main-grid">
+      <section class="win factory-panel" data-label="assembly.line · estaciones interactivos">
+        <div class="win-body">
+          <div class="factory-head">
+            <div>
+              <div class="factory-title">pipeline --graph --factory --interactive</div>
+              <div class="factory-note">Haz clic en una estación para ver la entrada, la transformación, la salida y la razón biológica o técnica.</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="ctrl-btn" id="btnPrev" title="Estación anterior (←)">◀ prev</button>
+            <button class="ctrl-btn active" id="btnPlay" title="Recorrer automáticamente">▶ play</button>
+            <button class="ctrl-btn" id="btnNext" title="Estación siguiente (→)">next ▶</button>
+            <div class="ctrl-sep"></div>
+            <button class="ctrl-btn" id="btnReset" title="Volver al inicio">⟳ reset</button>
+            <div class="ctrl-sep"></div>
+            <button class="ctrl-btn" id="btnTogglePanel" title="Mostrar/ocultar panel">⊟ panel</button>
+            <div class="step-counter">estación <strong id="stepNum">1</strong> / <strong>9</strong></div>
+          </div>
+
+          <div class="pan-bar">
+            <label for="mapPan">pan-x</label>
+            <input id="mapPan" type="range" min="0" max="100" value="0" />
+            <div class="pan-value" id="panValue">0%</div>
+          </div>
+
+          <div class="factory-stage" id="factoryStage">
+            <div id="factoryCanvas" class="factory-canvas"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="win station-panel" id="stationPanel" data-label="node.info · detalle de estación">
+        <div class="win-body" id="panelBody">
+          <div class="panel-nav">
+            <button class="nav-arrow" id="navPrev" title="Anterior">◀</button>
+            <span class="nav-label">estación <strong id="navNum">1</strong> de 9</span>
+            <button class="nav-arrow" id="navNext" title="Siguiente">▶</button>
+          </div>
+          <div class="station-kicker" id="stationLine">factory.log</div>
+          <h2 class="station-title" id="stationTitle">Cargando estación...</h2>
+          <p class="station-text" id="stationText">Preparando la línea de montaje...</p>
+
+          <div class="io-box input">
+            <strong>entrada</strong>
+            <div class="io-code" id="stationInput">...</div>
+          </div>
+          <div class="io-box cmd">
+            <strong>transformación</strong>
+            <div class="io-code" id="stationCommand">...</div>
+          </div>
+          <div class="io-box output">
+            <strong>salida</strong>
+            <div class="io-code" id="stationOutput">...</div>
+          </div>
+          <div class="why-box">
+            <strong>por qué</strong>
+            <p id="stationWhy">...</p>
+          </div>
+          <div class="example-box">
+            <strong>ejemplo</strong>
+            <p id="stationExample">...</p>
+          </div>
+          <div class="note-box">
+            <strong>qué debes recordar</strong>
+            <p id="stationNote">...</p>
+          </div>
+
+          <div class="steps" id="miniSteps"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section-grid">
+      <div class="win matrix-card" data-label="matrices.example · cómo deberían verse las piezas">
+        <div class="win-body">
+          <h4>Matriz VCF → X_VCF</h4>
+          <p class="note">Cada fila es un donor y cada columna un SNP. Los valores suelen ser <span class="chip">0</span> <span class="chip">1</span> <span class="chip">2</span>.</p>
+          <table class="matrix-table">
+            <thead>
+              <tr><th>donor</th><th>SNP1</th><th>SNP2</th><th>SNP3</th><th>SNP4</th><th>SNP5</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="row-h">Donor_A</td><td class="val0">0</td><td class="val1">1</td><td class="val2">2</td><td class="val1">1</td><td class="val0">0</td></tr>
+              <tr><td class="row-h">Donor_B</td><td class="val1">1</td><td class="val1">1</td><td class="val0">0</td><td class="val2">2</td><td class="val1">1</td></tr>
+              <tr><td class="row-h">Donor_C</td><td class="val2">2</td><td class="val0">0</td><td class="val1">1</td><td class="val1">1</td><td class="val0">0</td></tr>
+              <tr><td class="row-h">Donor_D</td><td class="val0">0</td><td class="val2">2</td><td class="val1">1</td><td class="val0">0</td><td class="val1">1</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="win matrix-card" data-label="matrices.example · matriz de célula y canales">
+        <div class="win-body">
+          <h4>Matriz BAM → X_BAM</h4>
+          <p class="note">Cada fila es una célula y cada SNP aporta dos canales: referencia y alternativa. Por eso el tamaño es <span class="chip">2F</span>.</p>
+          <table class="matrix-table">
+            <thead>
+              <tr><th>célula</th><th>REF1</th><th>ALT1</th><th>REF2</th><th>ALT2</th><th>REF3</th><th>ALT3</th><th>REF4</th><th>ALT4</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="row-h">Cell_01</td><td class="bam-ref">34</td><td class="bam-alt">3</td><td class="bam-ref">18</td><td class="bam-alt">2</td><td class="bam-ref">0</td><td class="bam-alt">0</td><td class="bam-ref">12</td><td class="bam-alt">1</td></tr>
+              <tr><td class="row-h">Cell_02</td><td class="bam-ref">10</td><td class="bam-alt">8</td><td class="bam-ref">25</td><td class="bam-alt">1</td><td class="bam-ref">7</td><td class="bam-alt">2</td><td class="bam-ref">20</td><td class="bam-alt">0</td></tr>
+              <tr><td class="row-h">Cell_03</td><td class="bam-ref">0</td><td class="bam-alt">0</td><td class="bam-ref">13</td><td class="bam-alt">11</td><td class="bam-ref">8</td><td class="bam-alt">1</td><td class="bam-ref">5</td><td class="bam-alt">5</td></tr>
+              <tr><td class="row-h">Cell_04</td><td class="bam-ref">28</td><td class="bam-alt">2</td><td class="bam-ref">17</td><td class="bam-alt">4</td><td class="bam-ref">1</td><td class="bam-alt">0</td><td class="bam-ref">21</td><td class="bam-alt">3</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="win matrix-card" data-label="metadata.example · barcode a donor">
+        <div class="win-body">
+          <h4>Metadata → assignments</h4>
+          <p class="note">La metadata une el barcode de la célula con el donor correcto. Sin este mapa, no hay etiqueta para aprender.</p>
+          <table class="matrix-table">
+            <thead>
+              <tr><th>barcode</th><th>donor</th><th>uso</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="row-h">AAAC-001</td><td>Donor_A</td><td>positiva</td></tr>
+              <tr><td class="row-h">AAAC-002</td><td>Donor_B</td><td>positiva</td></tr>
+              <tr><td class="row-h">AAAC-003</td><td>Donor_C</td><td>positiva</td></tr>
+              <tr><td class="row-h">AAAC-004</td><td>Donor_D</td><td>positiva</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="win matrix-card" data-label="pairs.example · cómo se fabrican los pares">
+        <div class="win-body">
+          <h4>Pares célula-donor</h4>
+          <p class="note">La fábrica no mira una sola muestra: genera pares positivos y negativos para enseñar a la red a distinguir coincidencias reales.</p>
+          <table class="matrix-table">
+            <thead>
+              <tr><th>célula</th><th>donor</th><th>label</th><th>significado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="row-h">Cell_01</td><td>Donor_A</td><td class="val2">1</td><td>positivo</td></tr>
+              <tr><td class="row-h">Cell_01</td><td>Donor_C</td><td class="val0">0</td><td>negativo</td></tr>
+              <tr><td class="row-h">Cell_02</td><td>Donor_B</td><td class="val2">1</td><td>positivo</td></tr>
+              <tr><td class="row-h">Cell_03</td><td>Donor_D</td><td class="val0">0</td><td>negativo</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-grid">
+      <div class="win" data-label="red.blueprint · estructura de la red siamesa">
+        <div class="card-body">
+          <h3>cómo se arma la red</h3>
+          <p>
+            La red tiene dos brazos que ven cosas distintas pero producen el mismo tipo de salida: un embedding.
+            Luego esos embeddings se comparan como dos piezas que pasan por el mismo calibre.
+          </p>
+          <div class="blueprint">
+            <h4>brazo célula</h4>
+            <div class="code-block">Entrada: 2F
+Linear(1024) → BatchNorm1d → ReLU → Dropout
+Linear(512)  → BatchNorm1d → ReLU → Dropout
+Salida: embedding_dim</div>
+          </div>
+          <div class="blueprint">
+            <h4>brazo genotipo</h4>
+            <div class="code-block">Entrada: F
+Linear(512) → BatchNorm1d → ReLU → Dropout
+Linear(512) → BatchNorm1d → ReLU → Dropout
+Salida: embedding_dim</div>
+          </div>
+          <div class="blueprint">
+            <h4>comparación</h4>
+            <div class="code-block">F.normalize(cell_emb)
+F.normalize(geno_emb)
+similarity = cosine_similarity(cell_emb, geno_emb)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="win" data-label="training.spec · parámetros de aprendizaje">
+        <div class="card-body">
+          <h3>entrenamiento y ajuste</h3>
+          <p>
+            Se aprende a dar un score alto cuando el par es correcto y uno bajo cuando es incorrecto.
+            El aprendizaje usa batches para estabilizar el gradiente y optimizar más rápido.
+          </p>
+          <div class="blueprint">
+            <h4>parámetros clave</h4>
+            <ul>
+              <li><strong>loss:</strong> SmoothL1Loss</li>
+              <li><strong>optimizer:</strong> AdamW</li>
+              <li><strong>learning rate:</strong> 1e-3</li>
+              <li><strong>weight decay:</strong> 1e-4</li>
+              <li><strong>batch size:</strong> 64</li>
+              <li><strong>scheduler:</strong> ReduceLROnPlateau</li>
+              <li><strong>early stopping:</strong> patience 10</li>
+            </ul>
+          </div>
+          <div class="footer-note">
+            El umbral de decisión no siempre debe ser 0.5. En este proyecto conviene reportar también el mejor threshold y la balanced accuracy.
+          </div>
+        </div>
+      </div>
+
+      <div class="win" data-label="output.log · qué produce la fábrica">
+        <div class="card-body">
+          <h3>salida final</h3>
+          <p>
+            El sistema produce un score por par, una tabla de pares, métricas globales y, al final,
+            la asignación de cada célula al donor que mejor encaja.
+          </p>
+          <div class="blueprint">
+            <h4>reportes útiles</h4>
+            <ul>
+              <li>Accuracy, AUC y AP</li>
+              <li>Brier y log loss para calibración</li>
+              <li>matriz de confusión</li>
+              <li>best_threshold y balanced accuracy</li>
+              <li>top-1 por célula</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function tickClock() {
+      const el = document.getElementById('statusClock');
+      if (el) el.textContent = new Date().toLocaleTimeString('es-MX', { hour12: false });
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    const PIPELINE_DATA = {
+      stations: {
+        1: {
+          line: 'recepción · archivos crudos',
+          title: 'Recibir la materia prima',
+          text: 'La línea arranca con archivos VCF, BAM y metadata. Aquí todavía no hay aprendizaje: solo entran piezas limpias y verificadas.',
+          input: 'VCF + BAM + metadata + assignments.tsv',
+          command: 'Validar que cada archivo exista y que las muestras estén ordenadas por batch.',
+          output: 'Carpeta de entrada lista para procesarse',
+          why: 'Si la materia prima está mal, todo lo que sigue sale torcido. Primero se verifica, luego se fabrica.',
+          example: 'Ejemplo: un VCF compartido por todos los donors, un BAM por célula o batch y una tabla barcode → donor.',
+          note: 'No se entrena todavía. Solo se confirma que el proyecto tiene las piezas necesarias y que el mapa de muestras coincide.'
+        },
+        2: {
+          line: 'recepción · validación',
+          title: 'Cargar y ordenar las piezas',
+          text: 'Se leen los archivos con torch.load y load_npz, y se deja una lista clara de donors, barcodes y asignaciones.',
+          input: 'torch tensors + matriz sparse + metadata',
+          command: 'torch.load(vcf); load_npz(bam); leer barcodes y assignments desde metadata.',
+          output: 'X_VCF, X_BAM, donors, barcodes, assignments',
+          why: 'Porque la red no entiende archivos sueltos: necesita matrices y listas alineadas con el mismo orden.',
+          example: 'Ejemplo: donor_3 del VCF debe corresponder siempre a la misma fila en toda la fábrica.',
+          note: 'Aquí empieza la alineación real entre los dos mundos: genotipo y señal de célula.'
+        },
+        3: {
+          line: 'matrices · genotipo',
+          title: 'Forjar la matriz VCF',
+          text: 'Cada donor se convierte en una fila y cada SNP en una columna. Esa matriz es la plantilla genética del sistema.',
+          input: 'Lista de SNPs por donor',
+          command: 'Construir X_VCF con valores 0, 1 o 2 según el genotipo.',
+          output: 'Matriz X_VCF [n_donors, n_snps]',
+          why: 'La red necesita un mapa numérico del genotipo para poder comparar con la señal de célula.',
+          example: 'Ejemplo visual: Donor_A → [0, 1, 2, 1, 0] en los SNPs elegidos.',
+          note: 'Esta matriz es la “tarjeta de identidad” de cada donor dentro del modelo.'
+        },
+        4: {
+          line: 'matrices · célula',
+          title: 'Forjar la matriz BAM',
+          text: 'La señal de célula se transforma en una matriz sparse con dos canales por SNP: referencia y alternativa.',
+          input: 'Lecturas por célula alineadas a los SNPs',
+          command: 'Construir X_BAM con columnas [REF1, ALT1, REF2, ALT2, ...].',
+          output: 'Matriz X_BAM [n_cells, 2F] en formato sparse',
+          why: 'Así la red ve la evidencia de cada célula sin perder la separación entre ref y alt.',
+          example: 'Ejemplo: Cell_01 → [34, 3, 18, 2, 0, 0, 12, 1].',
+          note: 'Sparse ayuda a guardar memoria porque la matriz suele ser muy grande y muy vacía.'
+        },
+        5: {
+          line: 'pares · etiquetas',
+          title: 'Crear pares célula-donor',
+          text: 'La fábrica no mira una muestra sola. Genera pares positivos y negativos para enseñar la comparación.',
+          input: 'X_VCF + X_BAM + assignments + barcodes',
+          command: 'GenotypeMatchingDataset(pair_mode, negative_ratio, hard_negatives_k).',
+          output: 'Pares etiquetados: positivos = 1, negativos = 0',
+          why: 'El modelo aprende por contraste: qué debe parecerse y qué debe separarse.',
+          example: 'Ejemplo: Cell_01 con Donor_A → 1; Cell_01 con Donor_C → 0.',
+          note: 'En entrenamiento se puede usar sampled; en evaluación se suele usar exhaustive para medir todo.'
+        },
+        6: {
+          line: 'red · brazo de célula',
+          title: 'Primer brazo: encoder de célula',
+          text: 'La señal de célula pasa por una red MLP: capas lineales, BatchNorm, ReLU y Dropout para sacar un embedding estable.',
+          input: 'Vector de célula de tamaño 2F',
+          command: 'Linear(1024) → BatchNorm1d → ReLU → Dropout → Linear(512) → ...',
+          output: 'Embedding de célula',
+          why: 'La red debe resumir la célula en un vector compacto que preserve la información útil para comparar.',
+          example: 'Variante grande: 2F → 1024 → 512 → embedding_dim. Variante shallow: 2F → 512 → embedding_dim.',
+          note: 'ReLU aporta no linealidad, BatchNorm estabiliza y Dropout reduce sobreajuste.'
+        },
+        7: {
+          line: 'red · brazo de genotipo',
+          title: 'Segundo brazo: encoder de genotipo',
+          text: 'El donor se transforma con una red similar pero de entrada F. Las dos ramas producen el mismo tipo de salida.',
+          input: 'Vector de genotipo de tamaño F',
+          command: 'Linear(512) → BatchNorm1d → ReLU → Dropout → Linear(512) → ...',
+          output: 'Embedding de genotipo',
+          why: 'Si ambas ramas entregan embeddings comparables, entonces el score puede medir si realmente hacen match.',
+          example: 'Después se normalizan los dos embeddings para que el tamaño no domine la comparación.',
+          note: 'La red siamesa comparte la idea de formato, no los pesos: cada brazo aprende su propia representación.'
+        },
+        8: {
+          line: 'red · similitud',
+          title: 'Comparar con similitud coseno',
+          text: 'Los embeddings se normalizan y se comparan con cosine similarity. Ese score dice si apuntan en la misma dirección.',
+          input: 'Embedding de célula + embedding de genotipo',
+          command: 'F.normalize(cell_emb) + F.normalize(geno_emb) + cosine_similarity().',
+          output: 'Score entre -1 y 1, o reescalado a probabilidad',
+          why: 'El coseno es útil porque ignora la escala y se fija en la orientación del patrón aprendido.',
+          example: 'Si ambos vectores apuntan parecido, el score sube; si apuntan distinto, el score baja.',
+          note: 'Por eso la red funciona como un inspector que mide qué tan alineadas están dos piezas.'
+        },
+        9: {
+          line: 'salida · aprendizaje y control',
+          title: 'Aprender, ajustar y reportar',
+          text: 'La salida del score se compara con la etiqueta usando SmoothL1Loss. Después AdamW ajusta los pesos y la evaluación revisa si el modelo quedó bien calibrado.',
+          input: 'Score del par + label real',
+          command: 'SmoothL1Loss + AdamW(lr=1e-3) + batch_size=64 + scheduler + early stopping.',
+          output: 'Checkpoint, métricas y mejor threshold',
+          why: 'La pérdida guía el aprendizaje, el optimizador actualiza los pesos y la evaluación separa calidad de ranking y calibración.',
+          example: 'Se reportan accuracy, AUC, AP, Brier, log loss, matriz de confusión y balanced accuracy.',
+          note: 'En este proyecto también conviene buscar el mejor umbral, porque 0.5 no siempre es el corte más útil.'
+        }
+      },
+      nodes: [
+        { id: 1, x: 120, y: 170, label: 'Recibir', group: 'entrada', dot: 'blue', next: [2] },
+        { id: 2, x: 320, y: 170, label: 'Validar', group: 'entrada', dot: 'blue', next: [3] },
+        { id: 3, x: 520, y: 170, label: 'X_VCF', group: 'matrices', dot: 'green', next: [4] },
+        { id: 4, x: 720, y: 170, label: 'X_BAM', group: 'matrices', dot: 'green', next: [5] },
+        { id: 5, x: 920, y: 170, label: 'Pares', group: 'pares', dot: 'amber', next: [6] },
+        { id: 6, x: 1120, y: 170, label: 'Brazo célula', group: 'red', dot: 'orange', next: [7] },
+        { id: 7, x: 1320, y: 170, label: 'Brazo genotipo', group: 'red', dot: 'orange', next: [8] },
+        { id: 8, x: 1520, y: 170, label: 'Coseno', group: 'red', dot: 'red', next: [9] },
+        { id: 9, x: 1700, y: 170, label: 'Salida', group: 'salida', dot: 'red', next: [] }
+      ],
+      connections: [
+        { from: 1, to: 2, kind: 'main' },
+        { from: 2, to: 3, kind: 'main' },
+        { from: 3, to: 4, kind: 'main' },
+        { from: 4, to: 5, kind: 'main' },
+        { from: 5, to: 6, kind: 'main' },
+        { from: 6, to: 7, kind: 'main' },
+        { from: 7, to: 8, kind: 'main' },
+        { from: 8, to: 9, kind: 'main' }
+      ]
+    };
+
+    const phaseByNode = { 1: 'entrada', 2: 'entrada', 3: 'matrices', 4: 'matrices', 5: 'pares', 6: 'red', 7: 'red', 8: 'red', 9: 'salida' };
+    const phaseSizes = { entrada: 2, matrices: 2, pares: 1, red: 3, salida: 1 };
+    const phaseOrder = ['entrada', 'matrices', 'pares', 'red', 'salida'];
+    const nodeOrder = PIPELINE_DATA.nodes.map(n => n.id);
+
+    const stationPanel = {
+      line: document.getElementById('stationLine'),
+      title: document.getElementById('stationTitle'),
+      text: document.getElementById('stationText'),
+      input: document.getElementById('stationInput'),
+      command: document.getElementById('stationCommand'),
+      output: document.getElementById('stationOutput'),
+      why: document.getElementById('stationWhy'),
+      example: document.getElementById('stationExample'),
+      note: document.getElementById('stationNote')
+    };
+
+    const factoryCanvas = document.getElementById('factoryCanvas');
+    const mapPan = document.getElementById('mapPan');
+    const panValue = document.getElementById('panValue');
+    const miniSteps = document.getElementById('miniSteps');
+    const workspace = document.getElementById('stationPanel');
+    const panelBody = document.getElementById('panelBody');
+
+    let activeStationId = 1;
+    let visitedIds = new Set([1]);
+    let stationNodes = [];
+    let mapSvg = null;
+    let isPlaying = false;
+    let playTimer = null;
+    let panelVisible = true;
+    let currentShift = 0;
+    let panRafId = null;
+    let focusRunId = 0;
+
+    function getStationData(id) { return PIPELINE_DATA.stations[id] || {}; }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function updatePhaseBar() {
+      const phaseVisited = { entrada: 0, matrices: 0, pares: 0, red: 0, salida: 0 };
+      visitedIds.forEach(id => {
+        const phase = phaseByNode[id];
+        if (phase) phaseVisited[phase] += 1;
+      });
+
+      phaseOrder.forEach((phase, idx) => {
+        const seg = document.querySelector(`.phase-seg.p${idx + 1}`);
+        const cnt = document.getElementById(`phCount${idx + 1}`);
+        const visited = phaseVisited[phase] || 0;
+        const size = phaseSizes[phase] || 1;
+        const fill = Math.round((visited / size) * 100);
+        seg.style.setProperty('--fill', `${fill}%`);
+        seg.classList.toggle('active', phaseByNode[activeStationId] === phase);
+        cnt.textContent = `${visited}/${size}`;
+      });
+    }
+
+    function updateStatus() {
+      const idx = nodeOrder.indexOf(activeStationId) + 1;
+      document.getElementById('statusStep').textContent = `estación ${idx}/${nodeOrder.length}`;
+      document.getElementById('stepNum').textContent = idx;
+      document.getElementById('navNum').textContent = idx;
+    }
+
+    function renderStationDetails(id) {
+      const data = getStationData(id);
+      stationPanel.line.textContent = data.line || 'factory.log';
+      stationPanel.title.textContent = data.title || `Estación ${id}`;
+      stationPanel.text.textContent = data.text || '';
+      stationPanel.input.textContent = data.input || '—';
+      stationPanel.command.textContent = data.command || '—';
+      stationPanel.output.textContent = data.output || '—';
+      stationPanel.why.textContent = data.why || '';
+      stationPanel.example.textContent = data.example || '';
+      stationPanel.note.textContent = data.note || '';
+
+      panelBody.style.animation = 'none';
+      panelBody.offsetHeight;
+      panelBody.style.animation = '';
+    }
+
+    function updateNavArrows() {
+      const idx = nodeOrder.indexOf(activeStationId);
+      document.getElementById('navPrev').disabled = idx <= 0;
+      document.getElementById('navNext').disabled = idx >= nodeOrder.length - 1;
+      document.getElementById('btnPrev').disabled = idx <= 0;
+      document.getElementById('btnNext').disabled = idx >= nodeOrder.length - 1;
+    }
+
+    function buildMiniSteps() {
+      miniSteps.innerHTML = PIPELINE_DATA.nodes.map(node => {
+        const data = getStationData(node.id);
+        return `
+          <button class="step-mini${node.id === 1 ? ' active' : ''}" data-station="${node.id}" type="button">
+            <span class="mini-num">${node.id}</span>
+            <span>
+              <strong>${data.title || node.label}</strong>
+              <small>${data.output || node.label}</small>
+            </span>
+          </button>
+        `;
+      }).join('');
+
+      miniSteps.querySelectorAll('.step-mini').forEach(btn => {
+        btn.addEventListener('click', () => setActiveStation(btn.dataset.station));
+      });
+    }
+
+    function refreshMiniSteps() {
+      miniSteps.querySelectorAll('.step-mini').forEach(btn => {
+        const sid = Number(btn.dataset.station);
+        btn.classList.toggle('active', sid === activeStationId);
+        btn.classList.toggle('done', visitedIds.has(sid) && sid !== activeStationId);
+      });
+    }
+
+    function clearRouteHighlight() {
+      if (!mapSvg) return;
+      mapSvg.querySelectorAll('.edge-path.highlight').forEach(el => el.classList.remove('highlight'));
+      stationNodes.forEach(n => n.classList.remove('route-hl'));
+    }
+
+    function getPathToNode(targetId) {
+      const queue = [[1]];
+      const visited = new Set([1]);
+      while (queue.length) {
+        const path = queue.shift();
+        const last = path[path.length - 1];
+        if (last === targetId) return path;
+        const outs = PIPELINE_DATA.connections.filter(c => c.from === last);
+        for (const c of outs) {
+          if (!visited.has(c.to)) {
+            visited.add(c.to);
+            queue.push([...path, c.to]);
+          }
+        }
+      }
+      return [targetId];
+    }
+
+    function highlightRoute(nodeIds) {
+      clearRouteHighlight();
+      if (!mapSvg) return;
+      nodeIds.forEach((id, i) => {
+        if (i === 0) return;
+        const from = nodeIds[i - 1];
+        const to = id;
+        mapSvg.querySelectorAll('.edge-path').forEach(edge => {
+          if (edge.dataset.from === String(from) && edge.dataset.to === String(to)) {
+            edge.classList.add('highlight');
+          }
+        });
+      });
+      nodeIds.forEach(id => {
+        const node = stationNodes.find(b => b.dataset.station === String(id));
+        if (node && id !== activeStationId) node.classList.add('route-hl');
+      });
+    }
+
+    function pingNode(id) {
+      const node = stationNodes.find(b => b.dataset.station === String(id));
+      if (!node) return;
+      node.classList.remove('ping');
+      void node.offsetWidth;
+      node.classList.add('ping');
+      setTimeout(() => node.classList.remove('ping'), 700);
+    }
+
+    function getMaxShift() {
+      const stage = document.getElementById('factoryStage');
+      return Math.max(0, 1800 - (stage ? stage.clientWidth : 1800));
+    }
+
+    function applyShift(shift) {
+      const max = getMaxShift();
+      shift = clamp(shift, 0, max);
+      currentShift = shift;
+      const pct = max > 0 ? Math.round((shift / max) * 100) : 0;
+      factoryCanvas.style.setProperty('--pan-x', `${-shift}px`);
+      mapPan.value = String(pct);
+      panValue.textContent = `${pct}%`;
+    }
+
+    function panToNode(nodeX) {
+      const stage = document.getElementById('factoryStage');
+      if (!stage) return;
+      const max = getMaxShift();
+      if (max <= 0) return;
+      const vw = stage.clientWidth;
+      const margin = 120;
+      const visibleL = currentShift + margin;
+      const visibleR = currentShift + vw - margin;
+      if (nodeX >= visibleL && nodeX <= visibleR) return;
+      let target = nodeX - vw / 2;
+      target = clamp(target, 0, max);
+      if (panRafId) cancelAnimationFrame(panRafId);
+      const start = currentShift;
+      const delta = target - start;
+      const duration = 360;
+      const t0 = performance.now();
+      const ease = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      const step = now => {
+        const p = Math.min(1, (now - t0) / duration);
+        applyShift(Math.round(start + delta * ease(p)));
+        if (p < 1) panRafId = requestAnimationFrame(step);
+      };
+      panRafId = requestAnimationFrame(step);
+    }
+
+    function setNodeEnergy(id, on) {
+      const node = stationNodes.find(b => b.dataset.station === String(id));
+      if (node) node.classList.toggle('active', on);
+    }
+
+    function setActiveStation(id, options = {}) {
+      const animate = options.animate !== false;
+      const data = getStationData(Number(id));
+      if (!data) return;
+      const prev = activeStationId;
+      activeStationId = Number(id);
+      visitedIds.add(activeStationId);
+
+      renderStationDetails(activeStationId);
+      stationNodes.forEach(n => n.classList.toggle('active', n.dataset.station === String(activeStationId)));
+      refreshMiniSteps();
+      updatePhaseBar();
+      updateStatus();
+      updateNavArrows();
+
+      const routePath = getPathToNode(activeStationId);
+      highlightRoute(routePath);
+      setTimeout(() => clearRouteHighlight(), 1100);
+
+      pingNode(activeStationId);
+      const node = PIPELINE_DATA.nodes.find(n => n.id === activeStationId);
+      if (node) panToNode(node.x);
+
+      if (animate && prev !== activeStationId) {
+        focusRunId += 1;
+      }
+    }
+
+    function stepForward() {
+      const idx = nodeOrder.indexOf(activeStationId);
+      if (idx < nodeOrder.length - 1) {
+        setActiveStation(nodeOrder[idx + 1]);
+        return true;
+      }
+      return false;
+    }
+
+    function stepBack() {
+      const idx = nodeOrder.indexOf(activeStationId);
+      if (idx > 0) {
+        setActiveStation(nodeOrder[idx - 1]);
+        return true;
+      }
+      return false;
+    }
+
+    function setPlaying(val) {
+      isPlaying = val;
+      const btn = document.getElementById('btnPlay');
+      if (isPlaying) {
+        btn.textContent = '⏸ pause';
+        btn.classList.add('active');
+        scheduleNext();
+      } else {
+        btn.textContent = '▶ play';
+        btn.classList.remove('active');
+        clearTimeout(playTimer);
+      }
+    }
+
+    function scheduleNext() {
+      clearTimeout(playTimer);
+      playTimer = setTimeout(() => {
+        if (!isPlaying) return;
+        const hasNext = stepForward();
+        if (hasNext) scheduleNext();
+        else setPlaying(false);
+      }, 2100);
+    }
+
+    function togglePlay() { setPlaying(!isPlaying); }
+
+    function togglePanel() {
+      panelVisible = !panelVisible;
+      document.getElementById('stationPanel').style.opacity = panelVisible ? '1' : '0';
+      document.getElementById('stationPanel').style.pointerEvents = panelVisible ? 'auto' : 'none';
+      document.getElementById('stationPanel').style.transform = panelVisible ? 'none' : 'translateX(12px)';
+      document.getElementById('btnTogglePanel').classList.toggle('active', !panelVisible);
+    }
+
+    function edgeColor(source, kind) {
+      const palette = { blue: '#48c7ff', teal: '#3fe1c6', amber: '#ffcb6b', orange: '#ff9966', red: '#ff6379' };
+      const base = palette[source.dot] || '#3fe1c6';
+      return kind === 'branch' ? base : base;
+    }
+
+    function buildPathPoints(source, target) {
+      const hw = 72;
+      const forward = target.x >= source.x;
+      const sourceAnchor = { x: forward ? source.x + hw : source.x - hw, y: source.y };
+      const targetAnchor = { x: forward ? target.x - hw : target.x + hw, y: target.y };
+      return [sourceAnchor, targetAnchor];
+    }
+
+    function pathString(points) {
+      if (!points.length) return '';
+      return 'M ' + points[0].x + ' ' + points[0].y + ' ' + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+    }
+
+    function routeToPath(source, target) {
+      return pathString(buildPathPoints(source, target));
+    }
+
+    function buildMap() {
+      factoryCanvas.innerHTML = '';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 1800 760');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      factoryCanvas.appendChild(svg);
+      mapSvg = svg;
+
+      PIPELINE_DATA.nodes.forEach(node => {
+        const data = getStationData(node.id);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `station-node${node.id === 1 ? ' active' : ''}`;
+        btn.dataset.station = String(node.id);
+        btn.dataset.id = String(node.id).padStart(2, '0');
+        btn.style.left = `${node.x}px`;
+        btn.style.top = `${node.y}px`;
+        btn.innerHTML = `
+          <div class="node-top">
+            <div class="node-dot ${node.dot}"></div>
+            <span class="node-label">${data.title || node.label}</span>
+          </div>
+          <div class="node-mini">${node.next.length ? node.next.join(',') : 'exit'}</div>
+        `;
+        factoryCanvas.appendChild(btn);
+      });
+
+      stationNodes = Array.from(factoryCanvas.querySelectorAll('.station-node'));
+      stationNodes.forEach(node => node.addEventListener('click', () => setActiveStation(node.dataset.station)));
+
+      PIPELINE_DATA.connections.forEach(conn => {
+        const source = PIPELINE_DATA.nodes.find(n => n.id === conn.from);
+        const target = PIPELINE_DATA.nodes.find(n => n.id === conn.to);
+        if (!source || !target) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'edge-path');
+        path.setAttribute('d', routeToPath(source, target));
+        path.setAttribute('stroke', edgeColor(source, conn.kind));
+        path.setAttribute('stroke-width', conn.kind === 'main' ? '4' : '3');
+        path.setAttribute('stroke-opacity', conn.kind === 'main' ? '0.85' : '0.55');
+        path.setAttribute('stroke-dasharray', conn.kind === 'main' ? 'none' : '6 4');
+        path.dataset.from = String(conn.from);
+        path.dataset.to = String(conn.to);
+        svg.appendChild(path);
+      });
+    }
+
+    document.getElementById('btnPlay').addEventListener('click', togglePlay);
+    document.getElementById('btnNext').addEventListener('click', () => { setPlaying(false); stepForward(); });
+    document.getElementById('btnPrev').addEventListener('click', () => { setPlaying(false); stepBack(); });
+    document.getElementById('btnReset').addEventListener('click', () => { setPlaying(false); setActiveStation(1, { animate: false }); });
+    document.getElementById('btnTogglePanel').addEventListener('click', togglePanel);
+    document.getElementById('navNext').addEventListener('click', () => { setPlaying(false); stepForward(); });
+    document.getElementById('navPrev').addEventListener('click', () => { setPlaying(false); stepBack(); });
+
+    mapPan.addEventListener('input', e => {
+      const pct = Number(e.target.value);
+      applyShift(Math.round((pct / 100) * getMaxShift()));
+    });
+
+    (function() {
+      const stage = document.getElementById('factoryStage');
+      let dragging = false;
+      let dragStartX = 0;
+      let shiftAtStart = 0;
+
+      stage.addEventListener('mousedown', e => {
+        if (e.target.closest('.station-node')) return;
+        dragging = true;
+        dragStartX = e.clientX;
+        shiftAtStart = currentShift;
+        stage.style.cursor = 'grabbing';
+        if (panRafId) { cancelAnimationFrame(panRafId); panRafId = null; }
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        applyShift(shiftAtStart - (e.clientX - dragStartX));
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        stage.style.cursor = 'grab';
+      });
+
+      stage.addEventListener('wheel', e => {
+        const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (dx === 0) return;
+        e.preventDefault();
+        if (panRafId) { cancelAnimationFrame(panRafId); panRafId = null; }
+        const scale = e.deltaMode === 0 ? 1 : e.deltaMode === 1 ? 18 : 300;
+        applyShift(currentShift + dx * scale);
+      }, { passive: false });
+    })();
+
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); setPlaying(false); stepForward(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setPlaying(false); stepBack(); }
+      if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); setPlaying(false); setActiveStation(1, { animate: false }); }
+    });
+
+    buildMap();
+    buildMiniSteps();
+    applyShift(0);
+    setActiveStation(1, { animate: false });
+  </script>
+</body>
+</html>
