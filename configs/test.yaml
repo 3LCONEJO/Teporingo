@@ -11,10 +11,10 @@ pipeline:
 training:
   output_dir: "models/fd_smoke_A_siamese"
   batch_label: "batch_a"
-  overwrite: false
-  epochs: 5
+  overwrite: true
+  epochs: 10
   batch_size: 64
-  learning_rate: 0.001
+  learning_rate: 0.0001
   optimizer: "adamw"
   embedding_dim: 512
   network: "siamese"
