@@ -95,6 +95,8 @@ def infer_embedding_dim(state_dict, default=512):
     candidates = [
         'cell_encoder.encoder.6.weight',
         'genotype_encoder.encoder.6.weight',
+        'cell_encoder.4.weight',
+        'genotype_encoder.4.weight',
     ]
 
     for key in candidates:
@@ -102,6 +104,18 @@ def infer_embedding_dim(state_dict, default=512):
             return state_dict[key].shape[0]
 
     return default
+
+
+def infer_model_type(state_dict):
+    """Infer which Siamese variant produced the checkpoint."""
+
+    if any(key.startswith('cell_encoder.encoder.') or key.startswith('genotype_encoder.encoder.') for key in state_dict):
+        return 'siamese'
+
+    if any(key.startswith('cell_encoder.') or key.startswith('genotype_encoder.') for key in state_dict):
+        return 'shallow'
+
+    return 'siamese'
 
 
 def scores_to_probabilities(raw_scores):
@@ -122,12 +136,13 @@ def scores_to_probabilities(raw_scores):
 
 
 @torch.no_grad()
-def evaluate(model, loader, device):
+def evaluate(model, loader, device, decision_threshold=0.9):
     """Run evaluation and return metrics."""
 
     model.eval()
 
     all_probs = []
+    all_raw_scores = []
     all_labels = []
     all_records = []
 
@@ -147,9 +162,11 @@ def evaluate(model, loader, device):
         geno_batch = geno_batch.to(device)
 
         raw_scores = model(cell_batch, geno_batch)
+        raw_scores_np = raw_scores.detach().cpu().numpy().reshape(-1)
         probs = scores_to_probabilities(raw_scores)
         labels_np = labels.numpy().reshape(-1)
 
+        all_raw_scores.extend(raw_scores_np.tolist())
         all_probs.extend(probs.tolist())
         all_labels.extend(labels_np.tolist())
 
@@ -175,8 +192,9 @@ def evaluate(model, loader, device):
                     'true_donor_idx': true_donor_idx,
                     'true_donor_name': true_donor_name,
                     'label': float(label),
+                    'raw_score': float(raw_scores_np[i]),
                     'score': float(prob),
-                    'prediction': float(prob >= 0.5),
+                    'prediction': float(raw_scores_np[i] >= decision_threshold),
                     'is_correct_pair': int(donor_idx == true_donor_idx),
                 })
 
@@ -184,7 +202,7 @@ def evaluate(model, loader, device):
 
     y_true = np.asarray(all_labels, dtype=np.float32)
     y_prob = np.asarray(all_probs, dtype=np.float32)
-    y_pred = (y_prob >= 0.5).astype(np.float32)
+    y_pred = (np.asarray(all_raw_scores, dtype=np.float32) >= decision_threshold).astype(np.float32)
 
     if y_true.size == 0:
         raise ValueError('Evaluation produced no pairs. Check assignments and pair_mode.')
@@ -225,7 +243,12 @@ def main():
     print(f'Using device: {device}')
 
     checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
-    state_dict = checkpoint['model_state_dict'] if 'model_state_dict' in checkpoint else checkpoint
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        state_dict = checkpoint['model_state_dict']
+        checkpoint_meta = checkpoint
+    else:
+        state_dict = checkpoint
+        checkpoint_meta = {}
 
     X_vcf, X_bam, donors, barcodes, assignments = load_prepared_data(
         args.vcf_matrix,
@@ -234,7 +257,8 @@ def main():
     )
 
     n_snps = X_vcf.shape[1]
-    embedding_dim = args.embedding_dim or infer_embedding_dim(state_dict)
+    network = checkpoint_meta.get('network') or infer_model_type(state_dict)
+    embedding_dim = args.embedding_dim or checkpoint_meta.get('embedding_dim') or infer_embedding_dim(state_dict)
 
     dataset = GenotypeMatchingDataset(
         X_vcf=X_vcf,
@@ -255,14 +279,22 @@ def main():
         pin_memory=(device.type == 'cuda'),
     )
 
-    model = SiameseNetwork(
-        n_snps=n_snps,
-        embedding_dim=embedding_dim,
-        similarity='cosine',
-    ).to(device)
-    model.load_state_dict(state_dict, strict=False)
+    if network == 'shallow':
+        model = ShallowSiameseNetwork(
+            n_snps=n_snps,
+            embedding_dim=embedding_dim,
+            similarity='cosine',
+        ).to(device)
+    else:
+        model = SiameseNetwork(
+            n_snps=n_snps,
+            embedding_dim=embedding_dim,
+            similarity='cosine',
+        ).to(device)
 
-    metrics = evaluate(model, loader, device)
+    model.load_state_dict(state_dict, strict=True)
+
+    metrics = evaluate(model, loader, device, decision_threshold=0.9)
 
     output_dir = Path(args.output_dir) if args.output_dir else Path(args.model).resolve().parent
     output_dir.mkdir(parents=True, exist_ok=True)
