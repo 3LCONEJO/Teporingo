@@ -1,5 +1,9 @@
 # Teporingo-Demultiplexing
-
+```
+!wget "https://genome.grid.wayne.edu/fastdemux/test/combined.posG199.reheader.vcf.gz"
+!wget "https://genome.grid.wayne.edu/fastdemux/test/possorted_genome_bam_1pct.bam"
+!wget "https://genome.grid.wayne.edu/fastdemux/test/possorted_genome_bam_1pct.bam.bai"
+```
 Teporingo-Demultiplexing is a research-oriented framework for genotype-aware single-cell demultiplexing using paired representations of VCF and BAM-derived information.
 
 The project is designed to support:
